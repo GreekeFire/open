@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Caro Order
 // @namespace    caro
-// @version      3.0
+// @version      3.1
 // @updateURL    https://greekefire.github.io/open/caro-order.user.js
 // @downloadURL  https://greekefire.github.io/open/caro-order.user.js
 // @description  From a 🧾 order note: picks the Shopee option and quantity, goes to checkout, puts the buyer in the reused address slot, ticks Shopee Coins, picks PayNow. Never places the order.
@@ -117,15 +117,21 @@
     // iPhone (8 Nov): Shopee's page pops "Open this page in Shopee?" or jumps to the app, and taps made meanwhile are lost.
     // So every step waits until Safari is in front again and keeps trying for up to 90s instead of giving up after 4 taps.
     const front = () => until(() => !document.hidden, 600000);
-    const r0 = ranges(), end = Date.now() + 90000;
+    const end = Date.now() + 90000;
     let picked = false;
     while (!picked && Date.now() < end) {
       await front(); await until(() => byText(/^Buy Now$/i), 15000);
       await wait(2000);  // a click while the page is still loading (or just back from the app) gets undone
       if (!opt()) { byText(/^Buy Now$/i)?.click(); await wait(1500); }  // phone layout: the options are in a sheet that Buy Now opens
       if (!await until(opt, 6000)) continue;
-      for (let t = 0; t < 4 && !(picked = selected(opt()) || (t > 0 && ranges() < r0)); t++) { await front(); opt()?.click(); await wait(900); }
-      picked = picked || selected(opt()) || ranges() < r0;
+      // picked = the chip looks selected, or the "$11.50 - $40.07" range became one price. Measured now, with the options on
+      // screen (3.0 measured it before the page loaded, never saw a pick, and kept tapping the chip on and off)
+      // or its text changed colour after our tap (Shopee's class names are scrambled, the picked chip turns red)
+      const col = () => { const o = opt(); return o ? getComputedStyle(o).color : ''; };
+      const r0 = ranges(), c0 = col(), done = () => selected(opt()) || (r0 > 0 && ranges() < r0) || (tapped && col() !== c0);
+      let tapped = false;
+      for (let t = 0; t < 3 && !done(); t++) { await front(); opt()?.click(); tapped = true; await until(done, 3000); }
+      picked = done();
     }
     if (!picked) return sessionStorage.removeItem('caro-order'), stuck('Could not pick the option <b>' + want + '</b>. Pick it yourself, then Buy Now.');
     const q = () => [...document.querySelectorAll('input')].find(i => vis(i) && /^\d+$/.test(i.value) && i.type !== 'hidden');
