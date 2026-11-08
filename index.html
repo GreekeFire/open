@@ -2,19 +2,19 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Opening Shopee</title>
 <style>body{font:17px system-ui,sans-serif;margin:40px 20px;color:#222}a{display:inline-block;margin-top:16px;padding:12px 18px;background:#ee4d2d;color:#fff;border-radius:6px;text-decoration:none}</style>
-<!-- Opens a Shopee page in Safari, not the Shopee app, so a userscript can run on it.
+<!-- Opens a Shopee page in Gear (iPhone) or the browser (laptop), not the Shopee app, so a userscript can run on it.
      Link: https://greekefire.github.io/open/#product/123/456#caro=... -->
-<p>Opening Shopee in Safari…</p>
+<p>Opening Shopee in Gear…</p>
 <a id="go" href="#">Tap here if nothing happens</a>
 <script>
-  // #!… = already hopped into real Safari. The Caro Order userscript marks <html data-caro> and opens Shopee itself.
+  // #!… = already hopped into Gear (8 Nov: Telegram can only open Safari/Chrome, and Safari keeps handing Shopee to the app; gear:// opens Gear). The Caro Order userscript marks <html data-caro> and opens Shopee itself.
   const raw = location.hash.slice(1), hopped = raw.startsWith('!');
   const path = raw.replace(/^!/, '').replace(/%23/gi, '#');  // Telegram desktop sends the inner # as %23
   if (/^[\w\/.%-]+(#caro=[^<>"']*)?$/.test(path)) {  // shopee.sg paths only
     const clean = path.replace(/&to=.*$/, '');  // the buyer's address never goes on to Shopee
-    // Telegram's built-in browser has no login and no userscripts: hop this page (address and all) into real Safari
-    const hop = 'x-safari-https://greekefire.github.io/open/#!' + raw.replace(/^!/, '');
-    document.getElementById('go').href = hopped ? 'x-safari-https://shopee.sg/' + clean : hop;
+    // Telegram's browser, Safari and Chrome: hop this page (address and all) into Gear, where the userscript runs
+    const hop = 'gear://greekefire.github.io/open/#!' + raw.replace(/^!/, '');
+    document.getElementById('go').href = hopped ? 'https://shopee.sg/' + clean : hop;
     setTimeout(() => {
       if (document.documentElement.dataset.caro) return;  // the userscript has it
       if (!hopped && /iPhone|iPad/.test(navigator.userAgent)) location.href = hop;
