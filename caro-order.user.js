@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Caro Order
 // @namespace    caro
-// @version      3.6
+// @version      3.7
 // @updateURL    https://greekefire.github.io/open/caro-order.user.js
 // @downloadURL  https://greekefire.github.io/open/caro-order.user.js
 // @description  From a 🧾 order note: picks the Shopee option and quantity, goes to checkout, puts the buyer in the reused address slot, ticks Shopee Coins, picks PayNow. Never places the order.
@@ -30,7 +30,7 @@
 (async () => {
   // one copy per page: Gear installs a second copy when the install link is opened again, and two copies tap everything twice (8 Nov)
   if (document.documentElement.dataset.caroRun) return;
-  document.documentElement.dataset.caroRun = '3.6';
+  document.documentElement.dataset.caroRun = '3.7';
   const dec = s => { for (let i = 0; i < 3 && /%[0-9A-Fa-f]{2}/.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } } return s; };  // iPhone: Telegram + Safari encode it twice
   const gm = typeof GM !== 'undefined' && GM.setValue;  // the iPhone Userscripts app has GM.*, Tampermonkey has both
   const store = { set: (k, v) => gm ? GM.setValue(k, v) : GM_setValue(k, v), get: async k => (gm ? await GM.getValue(k, '') : GM_getValue(k, '')) };
@@ -79,7 +79,7 @@
       document.body.appendChild(p);
       p.addEventListener('click', e => { const f = handlers[e.target.dataset.caro]; if (f) f(e); });  // on the panel: survives text changes
     }
-    p.innerHTML = '<b>Caro order</b> <small>v3.6</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
+    p.innerHTML = '<b>Caro order</b> <small>v3.7</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
   };
   const btn = (id, label) => `<button data-caro="${id}" style="margin:6px 6px 0 0;padding:8px 12px;background:#ee4d2d;color:#fff;border:0;border-radius:4px;font-size:14px">${label}</button>`;
   const stuck = msg => box(msg + '<br>' + btn('info', '🔍 Copy page info') + '<span style="font-size:12px"> then send it to Claude</span>');
@@ -195,7 +195,9 @@
   // The laptop does it in popups on the checkout page; the phone goes to separate My Addresses / Edit Address pages
   // and back. So each tick looks at what is on screen and does the next step; the progress lives in sessionStorage.
   const S = { get: () => JSON.parse(sessionStorage.getItem('caro-fill') || 'null'), set: v => v ? sessionStorage.setItem('caro-fill', JSON.stringify(v)) : sessionStorage.removeItem('caro-fill') };
-  const leaf = re => [...document.querySelectorAll('*')].filter(e => vis(e) && !e.children.length && re.test(e.textContent.trim()));
+  // an element's own words: the laptop's "+ Add New Address" button holds an icon plus bare text, so it has children but no text-only child (8 Nov)
+  const own = e => [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
+  const leaf = re => [...document.querySelectorAll('*')].filter(e => vis(e) && re.test(e.children.length ? own(e) : e.textContent.trim()));
   const addrCard = () => { const t = leaf(/SG\s*\d{6}|^\d{6}$/)[0]; let e = t; for (let k = 0; e && k < 4 && !/\d{8}|\(\+65\)/.test(e.innerText); k++) e = e.parentElement; return e || t; };
   function go(note) {
     const a = parse(note || '');
