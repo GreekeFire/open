@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Caro Order
 // @namespace    caro
-// @version      3.1
+// @version      3.2
 // @updateURL    https://greekefire.github.io/open/caro-order.user.js
 // @downloadURL  https://greekefire.github.io/open/caro-order.user.js
 // @description  From a 🧾 order note: picks the Shopee option and quantity, goes to checkout, puts the buyer in the reused address slot, ticks Shopee Coins, picks PayNow. Never places the order.
@@ -76,7 +76,7 @@
       document.body.appendChild(p);
       p.addEventListener('click', e => { const f = handlers[e.target.dataset.caro]; if (f) f(e); });  // on the panel: survives text changes
     }
-    p.innerHTML = '<b>Caro order</b> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
+    p.innerHTML = '<b>Caro order</b> <small>v3.2</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
   };
   const btn = (id, label) => `<button data-caro="${id}" style="margin:6px 6px 0 0;padding:8px 12px;background:#ee4d2d;color:#fff;border:0;border-radius:4px;font-size:14px">${label}</button>`;
   const stuck = msg => box(msg + '<br>' + btn('info', '🔍 Copy page info') + '<span style="font-size:12px"> then send it to Claude</span>');
@@ -117,6 +117,7 @@
     // iPhone (8 Nov): Shopee's page pops "Open this page in Shopee?" or jumps to the app, and taps made meanwhile are lost.
     // So every step waits until Safari is in front again and keeps trying for up to 90s instead of giving up after 4 taps.
     const front = () => until(() => !document.hidden, 600000);
+    box(`Picking <b>${want}</b>… don't tap anything.`);
     const end = Date.now() + 90000;
     let picked = false;
     while (!picked && Date.now() < end) {
