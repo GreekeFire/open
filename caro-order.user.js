@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Caro Order
 // @namespace    caro
-// @version      3.8
+// @version      3.9
 // @updateURL    https://greekefire.github.io/open/caro-order.user.js
 // @downloadURL  https://greekefire.github.io/open/caro-order.user.js
 // @description  From a 🧾 order note: picks the Shopee option and quantity, goes to checkout, puts the buyer in the reused address slot, ticks Shopee Coins, picks PayNow. Never places the order.
@@ -18,7 +18,7 @@
  * 1. Tap 🛍 Order in Gear in the 🧾 order note. It opens greekefire.github.io/open/#<product>#caro=<ORDER line>&to=<SHIP TO line>:
  *    this script keeps the address in its own storage and opens the Shopee product without it (Shopee never sees it),
  *    then picks the option and quantity and taps Buy Now, then Check Out.
- * 2. At checkout it fills the address by itself (📋 Paste note is the fallback). It writes the buyer into the 2nd saved address
+ * 2. At checkout it fills the address by itself (📋 Paste note is the fallback). It adds the buyer as a new saved address (one per order)
  *    (never your default, so the 10-address limit never comes up) with your number +6591517321, selects it, ticks
  *    Shopee Coins when the item allows it, and picks PayNow.
  * 3. You check the address, item and total, then tap Place Order yourself. Pay by scanning the PayNow QR
@@ -30,7 +30,7 @@
 (async () => {
   // one copy per page: Gear installs a second copy when the install link is opened again, and two copies tap everything twice (8 Nov)
   if (document.documentElement.dataset.caroRun) return;
-  document.documentElement.dataset.caroRun = '3.8';
+  document.documentElement.dataset.caroRun = '3.9';
   const dec = s => { for (let i = 0; i < 3 && /%[0-9A-Fa-f]{2}/.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } } return s; };  // iPhone: Telegram + Safari encode it twice
   const gm = typeof GM !== 'undefined' && GM.setValue;  // the iPhone Userscripts app has GM.*, Tampermonkey has both
   const store = { set: (k, v) => gm ? GM.setValue(k, v) : GM_setValue(k, v), get: async k => (gm ? await GM.getValue(k, '') : GM_getValue(k, '')) };
@@ -79,7 +79,7 @@
       document.body.appendChild(p);
       p.addEventListener('click', e => { const f = handlers[e.target.dataset.caro]; if (f) f(e); });  // on the panel: survives text changes
     }
-    p.innerHTML = '<b>Caro order</b> <small>v3.8</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
+    p.innerHTML = '<b>Caro order</b> <small>v3.9</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
   };
   const btn = (id, label) => `<button data-caro="${id}" style="margin:6px 6px 0 0;padding:8px 12px;background:#ee4d2d;color:#fff;border:0;border-radius:4px;font-size:14px">${label}</button>`;
   const stuck = msg => box(msg + '<br>' + btn('info', '🔍 Copy page info') + '<span style="font-size:12px"> then send it to Claude</span>');
@@ -205,6 +205,9 @@
     S.set({ a, stage: 'open', at: 0, idle: 0 }); box('Filling the address…');
   }
   let busy = false;
+  // the buyer's saved address in the list: the smallest block with their name, postal code and an Edit
+  const mine = () => { const a = S.get()?.a; return a && [...document.querySelectorAll('div, li, label')].filter(x => vis(x) && x.innerText?.includes(a.postal) && x.innerText.includes(a.name) && /Edit/.test(x.innerText) && x.innerText.length < 200)
+    .sort((x, y) => x.innerText.length - y.innerText.length)[0]; };
   async function step() {
     const f = S.get(); if (!f || busy || Date.now() - f.at < 2500) return;  // one action at a time, then let the page react
     busy = true;
@@ -223,13 +226,15 @@
       if (fm && f.stage === 'filled' && Date.now() - f.at > 5000) {  // still open: Shopee refused it
         S.set(null); return stuck('Shopee did not accept the address form. Read its message on the form, fix it, then tap Submit yourself.');
       }
-      if (list && f.stage === 'open') {  // the address list: the 2nd saved address is the buyer slot; the first is your default
-        if (edits.length > 1) edits[1].click(); else leaf(/Add New Address/i)[0].click();  // the 2nd address is the buyer slot (8 Nov: the user's own is 1st)
-        return act('edit');
+      if (list && f.stage === 'open') {  // the address list: each order gets its own address (8 Nov), so two open checkouts never share one
+        if (mine()) return act('filled');  // already saved (a retry, or a repeat buyer): just select it
+        if (leaf(/maximum|limit|up to \d+ address/i).length) { S.set(null); return stuck('Your Shopee address book is full. Delete some old buyer addresses (never your own), then tap the link again.'); }
+        const add = leaf(/Add New Address/i)[0];
+        if (add.closest('button')?.disabled || /disabled/i.test(add.closest('button')?.className || '')) { S.set(null); return stuck('Shopee won’t add more addresses. Delete some old buyer addresses (never your own), then tap the link again.'); }
+        add.click(); return act('edit');
       }
       if (list && f.stage === 'filled') {  // pick the slot we just wrote
-        const card = [...document.querySelectorAll('div, li, label')].filter(x => vis(x) && x.innerText?.includes(a.postal) && /Edit/.test(x.innerText) && x.innerText.length < 200)
-          .sort((x, y) => x.innerText.length - y.innerText.length)[0];
+        const card = mine();
         // laptop: the radio is a styled div (class *radio*), not role=radio; clicking the row div alone did nothing (8 Nov)
         const n = f.picks || 0, targets = card && [card.querySelector('[role=radio], input[type=radio]')?.closest('label') || card.querySelector('[role=radio], [class*=radio]'),
           leaf(new RegExp(a.postal)).find(x => card.contains(x)), card].filter(Boolean);  // a different spot on each try
@@ -242,7 +247,7 @@
         return act('filled');  // no Confirm button: try selecting again (a different spot); checkout below takes over once the list closes
       }
       if (!fm && !list && byText(/^Place Order$/i)) {  // back on checkout
-        if (f.stage !== 'open' && addrCard()?.innerText.includes(a.postal)) { S.set(null); return await finish(a); }
+        if (f.stage !== 'open' && addrCard()?.innerText.includes(a.postal) && addrCard().innerText.includes(a.name)) { S.set(null); return await finish(a); }
         (byText(/^Change$/i) || addrCard())?.click(); return act(f.stage === 'open' ? 'open' : 'filled');
       }
       if (++f.idle > 25) { S.set(null); return stuck('Stopped at this screen while filling the address.'); }  // ~20s with nothing to do
