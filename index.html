@@ -5,7 +5,7 @@
 <!-- Opens a Shopee page in Gear (iPhone) or the browser (laptop), not the Shopee app, so a userscript can run on it.
      Link: https://greekefire.github.io/open/#product/123/456#caro=... -->
 <p id="msg">Opening Shopee…</p>
-<a id="go" href="#">Tap here if nothing happens</a>
+<a id="go" href="#" hidden>Tap here if nothing happens</a>
 <script>
   // 8 Nov: on the iPhone, orders run in Gear (the userscript there marks <html data-caro> and opens Shopee itself).
   // Anywhere else on the iPhone (Telegram's browser, Safari, Chrome) hop into Gear with gear://open?url=… (the only
@@ -17,6 +17,7 @@
     const gear = 'gear://open?url=' + encodeURIComponent('https://greekefire.github.io/open/#!' + raw.replace(/^!/, ''));
     const iphone = /iPhone|iPad/.test(navigator.userAgent);
     document.getElementById('go').href = iphone && !hopped ? gear : 'https://shopee.sg/' + clean;
+    setTimeout(() => document.getElementById('go').hidden = false, 4000);  // the button only if we're still here after 4s
     setTimeout(() => {
       if (document.documentElement.dataset.caro) return;  // the userscript has it
       if (iphone && !hopped) { document.getElementById('msg').textContent = 'Opening Gear…'; location.href = gear; }
