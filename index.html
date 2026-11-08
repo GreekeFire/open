@@ -8,21 +8,19 @@
 <a id="go" href="#">Tap here if nothing happens</a>
 <script>
   // 8 Nov: on the iPhone, orders run in Gear (the userscript there marks <html data-caro> and opens Shopee itself).
-  // Anywhere else on the iPhone (Telegram's browser, Safari, Chrome) gear:// opens Gear but drops the address,
-  // so one tap copies this link and opens Gear; paste it there. The laptop just opens the product.
-  const raw = location.hash.slice(1).replace(/^!/, '');
-  const path = raw.replace(/%23/gi, '#');  // Telegram desktop sends the inner # as %23
+  // Anywhere else on the iPhone (Telegram's browser, Safari, Chrome) hop into Gear with gear://open?url=… (the only
+  // format Gear takes an address in). #!… = already hopped, so no loop if the script is missing in Gear.
+  const raw = location.hash.slice(1), hopped = raw.startsWith('!');
+  const path = raw.replace(/^!/, '').replace(/%23/gi, '#');  // Telegram desktop sends the inner # as %23
   if (/^[\w\/.%-]+(#caro=[^<>"']*)?$/.test(path)) {  // shopee.sg paths only
     const clean = path.replace(/&to=.*$/, '');  // the buyer's address never goes on to Shopee
-    const go = document.getElementById('go');
-    go.href = 'https://shopee.sg/' + clean;
+    const gear = 'gear://open?url=' + encodeURIComponent('https://greekefire.github.io/open/#!' + raw.replace(/^!/, ''));
+    const iphone = /iPhone|iPad/.test(navigator.userAgent);
+    document.getElementById('go').href = iphone && !hopped ? gear : 'https://shopee.sg/' + clean;
     setTimeout(() => {
       if (document.documentElement.dataset.caro) return;  // the userscript has it
-      if (!/iPhone|iPad/.test(navigator.userAgent)) return location.replace('https://shopee.sg/' + clean);
-      document.getElementById('msg').textContent = 'Orders run in Gear. Tap below, then in Gear tap the address bar and Paste and Go.';
-      go.textContent = '📋 Copy link and open Gear';
-      go.onclick = e => { e.preventDefault(); const u = 'https://greekefire.github.io/open/#' + raw;
-        (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).catch(() => {}).finally(() => { location.href = 'gear://'; }); };
+      if (iphone && !hopped) { document.getElementById('msg').textContent = 'Opening Gear…'; location.href = gear; }
+      else location.replace('https://shopee.sg/' + clean);  // laptop without the script, or Gear without it: just the product
     }, 800);
   } else document.body.innerHTML = '<p>No Shopee link in this address.</p>';
 </script>
