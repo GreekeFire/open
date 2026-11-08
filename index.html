@@ -4,21 +4,25 @@
 <style>body{font:17px system-ui,sans-serif;margin:40px 20px;color:#222}a{display:inline-block;margin-top:16px;padding:12px 18px;background:#ee4d2d;color:#fff;border-radius:6px;text-decoration:none}</style>
 <!-- Opens a Shopee page in Gear (iPhone) or the browser (laptop), not the Shopee app, so a userscript can run on it.
      Link: https://greekefire.github.io/open/#product/123/456#caro=... -->
-<p>Opening Shopee in Gear…</p>
+<p id="msg">Opening Shopee…</p>
 <a id="go" href="#">Tap here if nothing happens</a>
 <script>
-  // #!… = already hopped into Gear (8 Nov: Telegram can only open Safari/Chrome, and Safari keeps handing Shopee to the app; gear:// opens Gear). The Caro Order userscript marks <html data-caro> and opens Shopee itself.
-  const raw = location.hash.slice(1), hopped = raw.startsWith('!');
-  const path = raw.replace(/^!/, '').replace(/%23/gi, '#');  // Telegram desktop sends the inner # as %23
+  // 8 Nov: on the iPhone, orders run in Gear (the userscript there marks <html data-caro> and opens Shopee itself).
+  // Anywhere else on the iPhone (Telegram's browser, Safari, Chrome) gear:// opens Gear but drops the address,
+  // so one tap copies this link and opens Gear; paste it there. The laptop just opens the product.
+  const raw = location.hash.slice(1).replace(/^!/, '');
+  const path = raw.replace(/%23/gi, '#');  // Telegram desktop sends the inner # as %23
   if (/^[\w\/.%-]+(#caro=[^<>"']*)?$/.test(path)) {  // shopee.sg paths only
     const clean = path.replace(/&to=.*$/, '');  // the buyer's address never goes on to Shopee
-    // Telegram's browser, Safari and Chrome: hop this page (address and all) into Gear, where the userscript runs
-    const hop = 'gear://greekefire.github.io/open/#!' + raw.replace(/^!/, '');
-    document.getElementById('go').href = hopped ? 'https://shopee.sg/' + clean : hop;
+    const go = document.getElementById('go');
+    go.href = 'https://shopee.sg/' + clean;
     setTimeout(() => {
       if (document.documentElement.dataset.caro) return;  // the userscript has it
-      if (!hopped && /iPhone|iPad/.test(navigator.userAgent)) location.href = hop;
-      else location.replace('https://shopee.sg/' + clean);  // no userscript: just the product
-    }, 600);
+      if (!/iPhone|iPad/.test(navigator.userAgent)) return location.replace('https://shopee.sg/' + clean);
+      document.getElementById('msg').textContent = 'Orders run in Gear. Tap below, then in Gear tap the address bar and Paste and Go.';
+      go.textContent = '📋 Copy link and open Gear';
+      go.onclick = e => { e.preventDefault(); const u = 'https://greekefire.github.io/open/#' + raw;
+        (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).catch(() => {}).finally(() => { location.href = 'gear://'; }); };
+    }, 800);
   } else document.body.innerHTML = '<p>No Shopee link in this address.</p>';
 </script>
