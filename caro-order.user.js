@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Caro Order
 // @namespace    caro
-// @version      3.2
+// @version      3.3
 // @updateURL    https://greekefire.github.io/open/caro-order.user.js
 // @downloadURL  https://greekefire.github.io/open/caro-order.user.js
 // @description  From a 🧾 order note: picks the Shopee option and quantity, goes to checkout, puts the buyer in the reused address slot, ticks Shopee Coins, picks PayNow. Never places the order.
@@ -15,7 +15,7 @@
 // ==/UserScript==
 /*
  * Laptop (Tampermonkey in Chrome) and iPhone (the Userscripts app in Safari), 8 Nov.
- * 1. Tap 🛍 Order in Safari in the 🧾 order note. It opens greekefire.github.io/open/#<product>#caro=<ORDER line>&to=<SHIP TO line>:
+ * 1. Tap 🛍 Order in Gear in the 🧾 order note. It opens greekefire.github.io/open/#<product>#caro=<ORDER line>&to=<SHIP TO line>:
  *    this script keeps the address in its own storage and opens the Shopee product without it (Shopee never sees it),
  *    then picks the option and quantity and taps Buy Now, then Check Out.
  * 2. At checkout it fills the address by itself (📋 Paste note is the fallback). It writes the buyer into the last saved address
@@ -28,6 +28,9 @@
  * when this was written (Shopee blocks test browsers), so the first phone order is the test.
  */
 (async () => {
+  // one copy per page: Gear installs a second copy when the install link is opened again, and two copies tap everything twice (8 Nov)
+  if (document.documentElement.dataset.caroRun) return;
+  document.documentElement.dataset.caroRun = '3.3';
   const dec = s => { for (let i = 0; i < 3 && /%[0-9A-Fa-f]{2}/.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } } return s; };  // iPhone: Telegram + Safari encode it twice
   const gm = typeof GM !== 'undefined' && GM.setValue;  // the iPhone Userscripts app has GM.*, Tampermonkey has both
   const store = { set: (k, v) => gm ? GM.setValue(k, v) : GM_setValue(k, v), get: async k => (gm ? await GM.getValue(k, '') : GM_getValue(k, '')) };
@@ -76,7 +79,7 @@
       document.body.appendChild(p);
       p.addEventListener('click', e => { const f = handlers[e.target.dataset.caro]; if (f) f(e); });  // on the panel: survives text changes
     }
-    p.innerHTML = '<b>Caro order</b> <small>v3.2</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
+    p.innerHTML = '<b>Caro order</b> <small>v3.3</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
   };
   const btn = (id, label) => `<button data-caro="${id}" style="margin:6px 6px 0 0;padding:8px 12px;background:#ee4d2d;color:#fff;border:0;border-radius:4px;font-size:14px">${label}</button>`;
   const stuck = msg => box(msg + '<br>' + btn('info', '🔍 Copy page info') + '<span style="font-size:12px"> then send it to Claude</span>');
