@@ -7,11 +7,18 @@
 <p>Opening Shopee in Safari…</p>
 <a id="go" href="#">Tap here if nothing happens</a>
 <script>
-  const path = location.hash.slice(1).replace(/%23/gi, '#');  // Telegram desktop sends the inner # as %23
-  if (/^[\w\/.-]+(#caro=[^<>"']*)?$/.test(path)) {  // shopee.sg paths only
+  // #!… = already hopped into real Safari. The Caro Order userscript marks <html data-caro> and opens Shopee itself.
+  const raw = location.hash.slice(1), hopped = raw.startsWith('!');
+  const path = raw.replace(/^!/, '').replace(/%23/gi, '#');  // Telegram desktop sends the inner # as %23
+  if (/^[\w\/.%-]+(#caro=[^<>"']*)?$/.test(path)) {  // shopee.sg paths only
     const clean = path.replace(/&to=.*$/, '');  // the buyer's address never goes on to Shopee
-    document.getElementById('go').href = 'x-safari-https://shopee.sg/' + clean;  // iOS 17+: stays in Safari
-    // with an address, the Caro Order userscript keeps it and opens Shopee itself; this is the fallback without the script
-    setTimeout(() => location.replace('https://shopee.sg/' + clean), /&to=/.test(path) ? 2500 : 0);  // a page-made jump, so iOS normally doesn't hand it to the app
+    // Telegram's built-in browser has no login and no userscripts: hop this page (address and all) into real Safari
+    const hop = 'x-safari-https://greekefire.github.io/open/#!' + raw.replace(/^!/, '');
+    document.getElementById('go').href = hopped ? 'x-safari-https://shopee.sg/' + clean : hop;
+    setTimeout(() => {
+      if (document.documentElement.dataset.caro) return;  // the userscript has it
+      if (!hopped && /iPhone|iPad/.test(navigator.userAgent)) location.href = hop;
+      else location.replace('https://shopee.sg/' + clean);  // no userscript: just the product
+    }, 600);
   } else document.body.innerHTML = '<p>No Shopee link in this address.</p>';
 </script>
