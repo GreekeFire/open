@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Caro Order
 // @namespace    caro
-// @version      3.5
+// @version      3.6
 // @updateURL    https://greekefire.github.io/open/caro-order.user.js
 // @downloadURL  https://greekefire.github.io/open/caro-order.user.js
 // @description  From a 🧾 order note: picks the Shopee option and quantity, goes to checkout, puts the buyer in the reused address slot, ticks Shopee Coins, picks PayNow. Never places the order.
@@ -30,7 +30,7 @@
 (async () => {
   // one copy per page: Gear installs a second copy when the install link is opened again, and two copies tap everything twice (8 Nov)
   if (document.documentElement.dataset.caroRun) return;
-  document.documentElement.dataset.caroRun = '3.5';
+  document.documentElement.dataset.caroRun = '3.6';
   const dec = s => { for (let i = 0; i < 3 && /%[0-9A-Fa-f]{2}/.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } } return s; };  // iPhone: Telegram + Safari encode it twice
   const gm = typeof GM !== 'undefined' && GM.setValue;  // the iPhone Userscripts app has GM.*, Tampermonkey has both
   const store = { set: (k, v) => gm ? GM.setValue(k, v) : GM_setValue(k, v), get: async k => (gm ? await GM.getValue(k, '') : GM_getValue(k, '')) };
@@ -79,7 +79,7 @@
       document.body.appendChild(p);
       p.addEventListener('click', e => { const f = handlers[e.target.dataset.caro]; if (f) f(e); });  // on the panel: survives text changes
     }
-    p.innerHTML = '<b>Caro order</b> <small>v3.5</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
+    p.innerHTML = '<b>Caro order</b> <small>v3.6</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
   };
   const btn = (id, label) => `<button data-caro="${id}" style="margin:6px 6px 0 0;padding:8px 12px;background:#ee4d2d;color:#fff;border:0;border-radius:4px;font-size:14px">${label}</button>`;
   const stuck = msg => box(msg + '<br>' + btn('info', '🔍 Copy page info') + '<span style="font-size:12px"> then send it to Claude</span>');
@@ -152,15 +152,35 @@
     box(`Picked <b>${want}</b> × ${qty}. Going to checkout…`);
     await wait(700); await front();
     sessionStorage.removeItem('caro-order');  // only now: if Safari reloads the page after the app jump, it starts over
+    sessionStorage.setItem('caro-want', JSON.stringify({ want, qty }));  // the laptop cart needs it
     const buys = [...document.querySelectorAll('button, [role=button], div, span')].filter(b => vis(b) && /^Buy Now$/i.test((b.innerText || '').trim()) && ![...b.children].some(c => /^Buy Now$/i.test((c.innerText || '').trim())));
     (buys.filter(b => b.tagName === 'BUTTON').pop() || buys.pop())?.click();  // the sheet's own BUY NOW is a button; the bar behind it isn't
   }
 
   // ── 2. cart (after Buy Now): Check Out ──
   async function cart() {
+    // Laptop (8 Nov): Buy Now goes through the cart, and Check Out buys everything ticked there, so earlier tries and your own
+    // cart items came along (6 keyboards + an earphone). So: tick only our item, set its amount, then Check Out.
     const b = await until(() => [...document.querySelectorAll('button, [role=button]')].find(b => vis(b) && /^Check ?Out/i.test(b.innerText.trim())), 10000);
     if (!b) return stuck('No Check Out button found. Tap it yourself.');
-    box('Checking out… (if your cart already had this item, Shopee added to it: check the quantity at checkout)');
+    const { want, qty } = JSON.parse(sessionStorage.getItem('caro-want') || '{}');
+    if (!want) return stuck('Lost track of the item. Tick only the buyer\'s item in the cart, set the amount, then Check Out yourself.');
+    await wait(1500);
+    const amount = r => [...r.querySelectorAll('input')].find(i => vis(i) && /^\d+$/.test(i.value) && i.type !== 'checkbox');
+    const rows = [...new Set([...document.querySelectorAll('input[type=checkbox]')].map(cb => {  // a cart line = smallest block with a tick box and an amount
+      let r = cb; while (r && !(amount(r) && r.querySelector('input[type=checkbox]'))) r = r.parentElement; return r;
+    }).filter(r => r && r !== document.body && r.querySelectorAll('input[type=checkbox]').length === 1))];  // shop headers and Select All hold several tick boxes
+    const ours = rows.filter(r => norm(r.innerText).includes(norm(want)));
+    if (ours.length !== 1) return stuck(`Found ${ours.length} cart lines for <b>${want}</b>. Tick only the buyer's item, set the amount to ${qty}, then Check Out yourself.`);
+    const tick = r => r.querySelector('input[type=checkbox]');
+    for (const r of rows) {
+      const cb = tick(r), on = cb.checked || cb.getAttribute('aria-checked') === 'true';
+      if (on !== (r === ours[0])) { (cb.closest('label') || cb).click(); await wait(700); }
+    }
+    const i = amount(ours[0]), btns = [...i.parentElement.querySelectorAll('button')];
+    for (let t = 0; t < 40 && +i.value !== qty; t++) { (+i.value > qty ? btns[0] : btns[btns.length - 1])?.click(); await wait(500); }
+    if (+i.value !== qty) return stuck(`Could not set the amount to ${qty}. Set it yourself, then Check Out.`);
+    box(`Cart: only <b>${want}</b> × ${qty} ticked. Checking out…`);
     await wait(1200); b.click();
   }
 
@@ -208,11 +228,16 @@
       if (list && f.stage === 'filled') {  // pick the slot we just wrote
         const card = [...document.querySelectorAll('div, li, label')].filter(x => vis(x) && x.innerText?.includes(a.postal) && /Edit/.test(x.innerText) && x.innerText.length < 200)
           .sort((x, y) => x.innerText.length - y.innerText.length)[0];
-        if (card) { (card.querySelector('[role=radio], input[type=radio]')?.closest('label') || card.querySelector('[role=radio]') || card).click(); return act('pick'); }
+        // laptop: the radio is a styled div (class *radio*), not role=radio; clicking the row div alone did nothing (8 Nov)
+        const n = f.picks || 0, targets = card && [card.querySelector('[role=radio], input[type=radio]')?.closest('label') || card.querySelector('[role=radio], [class*=radio]'),
+          leaf(new RegExp(a.postal)).find(x => card.contains(x)), card].filter(Boolean);  // a different spot on each try
+        if (card) { targets[n % targets.length].click(); S.set({ ...f, stage: 'pick', picks: n + 1, at: Date.now(), idle: 0 }); return; }
       }
       if (list && f.stage === 'pick') {  // laptop: the My Address popup stays open until Confirm (the phone goes back to checkout by itself)
         const ok = leaf(/^(Confirm|OK|Done|Save)$/i).filter(b => !/cancel/i.test(b.textContent)).pop();
         if (ok) { ok.click(); return act('picked'); }
+        if ((f.picks || 0) >= 3) { S.set(null); return stuck('Could not select the buyer’s address in the list. Tick it yourself and close the list.'); }
+        return act('filled');  // no Confirm button: try selecting again (a different spot); checkout below takes over once the list closes
       }
       if (!fm && !list && byText(/^Place Order$/i)) {  // back on checkout
         if (f.stage !== 'open' && addrCard()?.innerText.includes(a.postal)) { S.set(null); return await finish(a); }
