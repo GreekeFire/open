@@ -9,8 +9,9 @@
 <script>
   const path = location.hash.slice(1).replace(/%23/gi, '#');  // Telegram desktop sends the inner # as %23
   if (/^[\w\/.-]+(#caro=[^<>"']*)?$/.test(path)) {  // shopee.sg paths only
-    const url = 'https://shopee.sg/' + path;
-    document.getElementById('go').href = 'x-safari-https://shopee.sg/' + path;  // iOS 17+: stays in Safari
-    location.replace(url);  // a page-made jump, not a tap, so iOS normally doesn't hand it to the app
+    const clean = path.replace(/&to=.*$/, '');  // the buyer's address never goes on to Shopee
+    document.getElementById('go').href = 'x-safari-https://shopee.sg/' + clean;  // iOS 17+: stays in Safari
+    // with an address, the Caro Order userscript keeps it and opens Shopee itself; this is the fallback without the script
+    setTimeout(() => location.replace('https://shopee.sg/' + clean), /&to=/.test(path) ? 2500 : 0);  // a page-made jump, so iOS normally doesn't hand it to the app
   } else document.body.innerHTML = '<p>No Shopee link in this address.</p>';
 </script>
