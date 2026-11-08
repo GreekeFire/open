@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Caro Order
 // @namespace    caro
-// @version      3.9
+// @version      3.10
 // @updateURL    https://greekefire.github.io/open/caro-order.user.js
 // @downloadURL  https://greekefire.github.io/open/caro-order.user.js
 // @description  From a 🧾 order note: picks the Shopee option and quantity, goes to checkout, puts the buyer in the reused address slot, ticks Shopee Coins, picks PayNow. Never places the order.
@@ -30,7 +30,7 @@
 (async () => {
   // one copy per page: Gear installs a second copy when the install link is opened again, and two copies tap everything twice (8 Nov)
   if (document.documentElement.dataset.caroRun) return;
-  document.documentElement.dataset.caroRun = '3.9';
+  document.documentElement.dataset.caroRun = '3.10';
   const dec = s => { for (let i = 0; i < 3 && /%[0-9A-Fa-f]{2}/.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } } return s; };  // iPhone: Telegram + Safari encode it twice
   const gm = typeof GM !== 'undefined' && GM.setValue;  // the iPhone Userscripts app has GM.*, Tampermonkey has both
   const store = { set: (k, v) => gm ? GM.setValue(k, v) : GM_setValue(k, v), get: async k => (gm ? await GM.getValue(k, '') : GM_getValue(k, '')) };
@@ -79,7 +79,7 @@
       document.body.appendChild(p);
       p.addEventListener('click', e => { const f = handlers[e.target.dataset.caro]; if (f) f(e); });  // on the panel: survives text changes
     }
-    p.innerHTML = '<b>Caro order</b> <small>v3.9</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
+    p.innerHTML = '<b>Caro order</b> <small>v3.10</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
   };
   const btn = (id, label) => `<button data-caro="${id}" style="margin:6px 6px 0 0;padding:8px 12px;background:#ee4d2d;color:#fff;border:0;border-radius:4px;font-size:14px">${label}</button>`;
   const stuck = msg => box(msg + '<br>' + btn('info', '🔍 Copy page info') + '<span style="font-size:12px"> then send it to Claude</span>');
@@ -177,9 +177,15 @@
       const cb = tick(r), on = cb.checked || cb.getAttribute('aria-checked') === 'true';
       if (on !== (r === ours[0])) { (cb.closest('label') || cb).click(); await wait(700); }
     }
-    const i = amount(ours[0]), btns = [...i.parentElement.querySelectorAll('button')];
-    for (let t = 0; t < 40 && +i.value !== qty; t++) { (+i.value > qty ? btns[0] : btns[btns.length - 1])?.click(); await wait(500); }
-    if (+i.value !== qty) return stuck(`Could not set the amount to ${qty}. Set it yourself, then Check Out.`);
+    // one click, then wait for Shopee to show the new amount (it saves each change first; clicking ahead overshot 4 → 1, 8 Nov)
+    const line = () => ours[0];  // ponytail: assumes Shopee updates the cart line in place; re-find it if a run ever shows 'Could not set the amount'
+    const val = () => +(amount(line() || document.body)?.value || 0);
+    for (let t = 0; t < 40 && val() !== qty; t++) {
+      const i = amount(line()), btns = [...i.parentElement.querySelectorAll('button')], before = i.value;
+      (+before > qty ? btns[0] : btns[btns.length - 1])?.click();
+      await until(() => String(val()) !== before, 4000); await wait(900);
+    }
+    if (val() !== qty) return stuck(`Could not set the amount to ${qty}. Set it yourself, then Check Out.`);
     box(`Cart: only <b>${want}</b> × ${qty} ticked. Checking out…`);
     await wait(1200); b.click();
   }
