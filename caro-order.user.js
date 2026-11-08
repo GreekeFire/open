@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Caro Order
 // @namespace    caro
-// @version      3.3
+// @version      3.4
 // @updateURL    https://greekefire.github.io/open/caro-order.user.js
 // @downloadURL  https://greekefire.github.io/open/caro-order.user.js
 // @description  From a 🧾 order note: picks the Shopee option and quantity, goes to checkout, puts the buyer in the reused address slot, ticks Shopee Coins, picks PayNow. Never places the order.
@@ -30,7 +30,7 @@
 (async () => {
   // one copy per page: Gear installs a second copy when the install link is opened again, and two copies tap everything twice (8 Nov)
   if (document.documentElement.dataset.caroRun) return;
-  document.documentElement.dataset.caroRun = '3.3';
+  document.documentElement.dataset.caroRun = '3.4';
   const dec = s => { for (let i = 0; i < 3 && /%[0-9A-Fa-f]{2}/.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } } return s; };  // iPhone: Telegram + Safari encode it twice
   const gm = typeof GM !== 'undefined' && GM.setValue;  // the iPhone Userscripts app has GM.*, Tampermonkey has both
   const store = { set: (k, v) => gm ? GM.setValue(k, v) : GM_setValue(k, v), get: async k => (gm ? await GM.getValue(k, '') : GM_getValue(k, '')) };
@@ -79,7 +79,7 @@
       document.body.appendChild(p);
       p.addEventListener('click', e => { const f = handlers[e.target.dataset.caro]; if (f) f(e); });  // on the panel: survives text changes
     }
-    p.innerHTML = '<b>Caro order</b> <small>v3.3</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
+    p.innerHTML = '<b>Caro order</b> <small>v3.4</small> <span data-caro="close" style="float:right;cursor:pointer">✕</span><br>' + html; return p;
   };
   const btn = (id, label) => `<button data-caro="${id}" style="margin:6px 6px 0 0;padding:8px 12px;background:#ee4d2d;color:#fff;border:0;border-radius:4px;font-size:14px">${label}</button>`;
   const stuck = msg => box(msg + '<br>' + btn('info', '🔍 Copy page info') + '<span style="font-size:12px"> then send it to Claude</span>');
@@ -138,10 +138,17 @@
       picked = done();
     }
     if (!picked) return sessionStorage.removeItem('caro-order'), stuck('Could not pick the option <b>' + want + '</b>. Pick it yourself, then Buy Now.');
+    // quantity (8 Nov, keyboard ×2 in Gear): the box sits below the options, off screen in the sheet, and may not be an <input>.
+    // So: find the + by its test id (or next to a number box), scroll it into view, read the number beside it, tap + until it matches.
     const q = () => [...document.querySelectorAll('input')].find(i => vis(i) && /^\d+$/.test(i.value) && i.type !== 'hidden');
-    const plus = () => { const i = q(); return i && (document.querySelector('[data-testid=button_quantity_plus]') || (i.nextElementSibling?.matches('button, [role=button]') ? i.nextElementSibling : i.parentElement.querySelector('[aria-label*=ncrease], button:last-of-type'))); };
-    for (let n = +(q()?.value || 1); n < qty && plus(); n++) { plus().click(); await wait(400); }  // typed values don't stick; + does
-    if (qty > 1 && +(q()?.value || 1) !== qty) return stuck(`Could not set the quantity to ${qty}. Set it yourself, then Buy Now.`);
+    const plus = () => document.querySelector('[data-testid=button_quantity_plus]') || (() => { const i = q(); return i && (i.nextElementSibling?.matches('button, [role=button]') ? i.nextElementSibling : i.parentElement.querySelector('[aria-label*=ncrease], button:last-of-type')); })();
+    const count = () => { const i = q(); if (i) return +i.value; const t = (plus()?.previousElementSibling || plus()?.parentElement)?.innerText || ''; return +(t.match(/\d+/) || [1])[0]; };
+    if (qty > 1) {
+      if (!await until(plus, 5000)) return stuck(`Could not find the quantity buttons. Set it to ${qty} yourself, then Buy Now.`);
+      plus().scrollIntoView({ block: 'center' }); await wait(600);
+      for (let t = 0; t < qty + 3 && count() < qty; t++) { await front(); plus().click(); await wait(600); }  // typed values don't stick; + does
+      if (count() !== qty) return stuck(`Could not set the quantity to ${qty} (it shows ${count()}). Set it yourself, then Buy Now.`);
+    }
     box(`Picked <b>${want}</b> × ${qty}. Going to checkout…`);
     await wait(700); await front();
     sessionStorage.removeItem('caro-order');  // only now: if Safari reloads the page after the app jump, it starts over
