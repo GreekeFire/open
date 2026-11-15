@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Caro Order
 // @namespace    caro
-// @version      3.10
+// @version      3.11
 // @updateURL    https://greekefire.github.io/open/caro-order.user.js
 // @downloadURL  https://greekefire.github.io/open/caro-order.user.js
 // @description  From a 🧾 order note: picks the Shopee option and quantity, goes to checkout, puts the buyer in the reused address slot, ticks Shopee Coins, picks PayNow. Never places the order.
@@ -19,7 +19,7 @@
  *    this script keeps the address in its own storage and opens the Shopee product without it (Shopee never sees it),
  *    then picks the option and quantity and taps Buy Now, then Check Out.
  * 2. At checkout it fills the address by itself (📋 Paste note is the fallback). It adds the buyer as a new saved address (one per order)
- *    (never your default, so the 10-address limit never comes up) with your number +6591517321, selects it, ticks
+ *    (never your default, so the 10-address limit never comes up) with your number +6596201336, selects it, ticks
  *    Shopee Coins when the item allows it, and picks PayNow.
  * 3. You check the address, item and total, then tap Place Order yourself. Pay by scanning the PayNow QR
  *    (on the phone: screenshot it and scan it from Photos in your bank app).
@@ -55,7 +55,7 @@
     document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('a[href]'); if (a && bad(a.getAttribute('href'))) e.preventDefault(); }, true);
   })();`;
   (document.head || document.documentElement).appendChild(s); s.remove();
-  const PHONE = '+6591517321';  // always your number, so couriers call you; Shopee rejects it with spaces or without +65 (8 Nov)
+  const PHONE = '+6596201336';  // 15 Nov: new number  // always your number, so couriers call you; Shopee rejects it with spaces or without +65 (8 Nov)
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const until = async (f, ms = 15000) => { for (let t = 0; t < ms; t += 300) { const v = f(); if (v) return v; await wait(300); } return null; };
